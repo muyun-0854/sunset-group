@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>夕阳红活动中心 🌅</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+    :root {
+        --wx-bg: #f6f6f6;
+        --wx-white: #ffffff;
+        --wx-green: #1aad19;
+        --wx-green-light: #e8f8e8;
+        --wx-text: #1a1a1a;
+        --wx-text-secondary: #666666;
+        --wx-text-muted: #999999;
+        --wx-divider: #ededed;
+        --wx-gold: #c9a24e;
+        --wx-orange: #e87839;
+        --wx-blue: #576b95;
+        --shadow-card: 0 1px 3px rgba(0,0,0,0.06);
+        --shadow-float: 0 4px 20px rgba(0,0,0,0.08);
+        --member-colors: #e87839 #3b82f6 #ec4899 #8b5cf6 #10b981 #f59e0b #06b6d4 #ef4444;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Segoe UI', sans-serif;
+        background: var(--wx-bg);
+        color: var(--wx-text);
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+        overflow-x: hidden;
+        min-height: 100vh;
+    }
+
+    /* ===== 导航栏 ===== */
+    .navbar {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        background: rgba(246,246,246,0.92);
+        backdrop-filter: saturate(180%) blur(20px);
+        -webkit-backdrop-filter: saturate(180%) blur(20px);
+        border-bottom: 0.5px solid var(--wx-divider);
+        padding: 12px 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .navbar-back { font-size: 20px; color: var(--wx-text); cursor: pointer; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background 0.2s; }
+    .navbar-back:hover { background: rgba(0,0,0,0.04); }
+    .navbar-title { font-size: 17px; font-weight: 600; letter-spacing: 0.02em; }
+    .navbar-action { font-size: 14px; color: var(--wx-blue); cursor: pointer; padding: 4px 10px; border-radius: 6px; transition: background 0.2s; }
+    .navbar-action:hover { background: rgba(87,107,149,0.06); }
+
+    /* ===== 主容器 ===== */
+    .main { max-width: 560px; margin: 0 auto; padding: 0 0 40px; }
+
+    /* ===== 群头像区域 ===== */
+    .group-header {
+        background: var(--wx-white); margin: 12px 12px 0; border-radius: 12px;
+        padding: 28px 20px 22px; text-align: center; box-shadow: var(--shadow-card);
+        position: relative; overflow: hidden;
+    }
+    .group-header::before {
+        content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+        background: linear-gradient(90deg, #e87839, #f59e0b, #10b981, #3b82f6, #8b5cf6, #ec4899);
+    }
+    .group-name { font-size: 22px; font-weight: 700; letter-spacing: 0.03em; margin-bottom: 4px; }
+    .group-name .emoji { display: inline-block; animation: wiggle 3s ease-in-out infinite; }
+    @keyframes wiggle { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(8deg); } 75% { transform: rotate(-8deg); } }
+    .group-subtitle { font-size: 12px; color: var(--wx-text-muted); letter-spacing: 0.04em; }
+    .member-dots { display: flex; justify-content: center; gap: 6px; margin-top: 14px; flex-wrap: wrap; }
+    .member-dot {
+        width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center;
+        justify-content: center; font-size: 18px; color: #fff; cursor: pointer;
+        transition: all 0.25s; position: relative; font-weight: 700;
+    }
+    .member-dot:hover { transform: scale(1.15); z-index: 2; box-shadow: 0 4px 16px rgba(0,0,0,0.2); }
+    .member-dot .tooltip {
+        position: absolute; bottom: 110%; left: 50%; transform: translateX(-50%);
+        background: rgba(0,0,0,0.8); color: #fff; font-size: 11px; padding: 3px 10px;
+        border-radius: 10px; white-space: nowrap; pointer-events: none; opacity: 0;
+        transition: opacity 0.2s; font-weight: 400;
+    }
+    .member-dot:hover .tooltip { opacity: 1; }
+
+    /* ===== 世界地图 ===== */
+    .map-section {
+        margin: 10px 12px 0; background: var(--wx-white); border-radius: 12px;
+        box-shadow: var(--shadow-card); overflow: hidden; position: relative;
+    }
+    .map-header {
+        padding: 14px 16px; font-size: 14px; font-weight: 600; display: flex;
+        align-items: center; gap: 8px; border-bottom: 0.5px solid var(--wx-divider);
+        background: #fafafa; justify-content: space-between;
+    }
+    .map-header .map-title { display: flex; align-items: center; gap: 8px; }
+    .map-toggle {
+        font-size: 12px; color: var(--wx-blue); cursor: pointer; padding: 4px 12px;
+        border-radius: 12px; border: 1px solid rgba(87,107,149,0.2); background: #fff;
+        transition: all 0.2s;
+    }
+    .map-toggle.active { background: var(--wx-blue); color: #fff; border-color: var(--wx-blue); }
+    #mapContainer { width: 100%; height: 360px; position: relative; z-index: 1; }
+    #mapContainer .leaflet-control-zoom { border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    #mapContainer .leaflet-control-zoom a { border-radius: 0; }
+
+    /* 自定义地图 popup */
+    .map-popup { text-align: center; min-width: 120px; }
+    .map-popup .popup-avatar {
+        width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center;
+        justify-content: center; font-size: 18px; color: #fff; margin: 0 auto 6px; font-weight: 700;
+    }
+    .map-popup .popup-name { font-size: 15px; font-weight: 700; color: #1a1a1a; }
+    .map-popup .popup-region { font-size: 11px; color: #999; margin: 2px 0 6px; }
+    .map-popup .popup-fact { font-size: 12px; color: #666; line-height: 1.5; font-style: italic; }
+
+    /* ===== 公告滚动条 ===== */
+    .announcement-bar {
+        margin: 10px 12px 0; padding: 12px 16px;
+        background: linear-gradient(135deg, #fef9e7, #fef5e0); border-radius: 10px;
+        display: flex; align-items: center; gap: 10px; font-size: 13px; color: #8b6914;
+        cursor: pointer; box-shadow: var(--shadow-card); transition: all 0.3s; overflow: hidden;
+    }
+    .announcement-bar:hover { transform: translateY(-1px); box-shadow: var(--shadow-float); }
+    .announcement-bar .icon { font-size: 18px; flex-shrink: 0; }
+    .announcement-bar .marquee { flex: 1; overflow: hidden; white-space: nowrap; }
+    .announcement-bar .marquee-inner { display: inline-block; animation: marquee 20s linear infinite; }
+    @keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+
+    /* ===== 公告弹窗 ===== */
+    .overlay {
+        position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 200;
+        display: flex; align-items: center; justify-content: center;
+        opacity: 0; pointer-events: none; transition: opacity 0.3s;
+    }
+    .overlay.active { opacity: 1; pointer-events: auto; }
+    .overlay-dialog {
+        background: var(--wx-white); border-radius: 16px; padding: 28px 24px 20px;
+        margin: 24px; max-width: 400px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+        transform: translateY(20px); transition: transform 0.3s;
+    }
+    .overlay.active .overlay-dialog { transform: translateY(0); }
+    .overlay-dialog h3 { font-size: 18px; margin-bottom: 16px; text-align: center; }
+    .overlay-dialog .quote { font-size: 14px; color: var(--wx-text-secondary); line-height: 2; text-align: center; }
+    .overlay-dialog .quote span { display: block; margin: 8px 0; padding: 8px 0; border-bottom: 1px dashed var(--wx-divider); }
+    .overlay-dialog .quote span:last-child { border-bottom: none; font-weight: 600; color: var(--wx-orange); font-size: 16px; }
+    .overlay-close { display: block; margin: 20px auto 0; padding: 10px 40px; background: var(--wx-green); color: #fff; border: none; border-radius: 20px; font-size: 15px; cursor: pointer; transition: opacity 0.2s; }
+    .overlay-close:hover { opacity: 0.85; }
+
+    /* ===== 板块标题 ===== */
+    .section-title { font-size: 15px; font-weight: 600; padding: 20px 16px 6px; color: var(--wx-text); letter-spacing: 0.03em; display: flex; align-items: center; gap: 6px; }
+    .section-title .dot { width: 4px; height: 18px; border-radius: 2px; background: var(--wx-green); }
+
+    /* ===== 时区卡片 ===== */
+    .timezone-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 8px 12px; }
+    .tz-card {
+        background: var(--wx-white); border-radius: 12px; padding: 14px; box-shadow: var(--shadow-card);
+        display: flex; align-items: center; gap: 12px; transition: all 0.25s; cursor: pointer;
+    }
+    .tz-card:hover { box-shadow: var(--shadow-float); transform: translateY(-1px); }
+    .tz-card .tz-avatar {
+        width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center;
+        justify-content: center; font-size: 16px; color: #fff; flex-shrink: 0; font-weight: 700;
+    }
+    .tz-card .tz-info { flex: 1; min-width: 0; }
+    .tz-card .tz-name { font-size: 13px; font-weight: 600; }
+    .tz-card .tz-city { font-size: 10px; color: var(--wx-text-muted); }
+    .tz-card .tz-status {
+        font-size: 11px; padding: 3px 10px; border-radius: 10px;
+        display: inline-block; margin-top: 3px;
+    }
+    .tz-status.awake { background: #e8f8e8; color: #1aad19; }
+    .tz-status.maybe { background: #fef9e7; color: #c9a24e; }
+    .tz-status.sleep { background: #f0f0f0; color: #999; }
+
+    /* ===== 今日荐书 ===== */
+    .book-recommend {
+        margin: 8px 12px; background: var(--wx-white); border-radius: 12px;
+        padding: 20px 18px; box-shadow: var(--shadow-card); text-align: center;
+    }
+    .book-recommend .book-cover {
+        width: 80px; height: 110px; border-radius: 6px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        margin: 0 auto 14px; display: flex; align-items: center; justify-content: center;
+        font-size: 36px; color: #fff; box-shadow: 0 8px 25px rgba(102,126,234,0.3);
+        transition: transform 0.3s;
+    }
+    .book-recommend .book-title { font-size: 17px; font-weight: 600; margin-bottom: 4px; }
+    .book-recommend .book-author { font-size: 12px; color: var(--wx-text-muted); margin-bottom: 10px; }
+    .book-recommend .book-reason { font-size: 13px; color: var(--wx-text-secondary); line-height: 1.6; }
+    .btn-shuffle {
+        display: inline-block; margin-top: 14px; padding: 10px 28px;
+        background: var(--wx-green); color: #fff; border: none; border-radius: 20px;
+        font-size: 14px; cursor: pointer; transition: all 0.2s;
+        box-shadow: 0 4px 12px rgba(26,173,25,0.25);
+    }
+    .btn-shuffle:hover { opacity: 0.88; transform: translateY(-1px); }
+    .btn-shuffle:active { transform: scale(0.96); }
+
+    /* ===== 漂流瓶 ===== */
+    .bottle-section {
+        margin: 8px 12px; background: var(--wx-white); border-radius: 12px;
+        box-shadow: var(--shadow-card); padding: 20px 18px; text-align: center;
+    }
+    .bottle-anim {
+        font-size: 52px; display: inline-block; cursor: pointer;
+        animation: bob 2.5s ease-in-out infinite; user-select: none;
+        transition: transform 0.3s;
+    }
+    .bottle-anim:active { transform: scale(1.3); }
+    @keyframes bob {
+        0%, 100% { transform: translateY(0) rotate(-3deg); }
+        50% { transform: translateY(-14px) rotate(3deg); }
+    }
+    .bottle-msg {
+        font-size: 15px; color: var(--wx-text-secondary); margin-top: 10px;
+        min-height: 48px; display: flex; align-items: center; justify-content: center;
+        font-style: italic; line-height: 1.7;
+    }
+    .bottle-route {
+        font-size: 12px; color: var(--wx-text-muted); margin-top: 8px;
+        letter-spacing: 0.03em;
+    }
+
+    /* ===== 群聊模拟器 ===== */
+    .chat-section {
+        margin: 8px 12px; background: var(--wx-white); border-radius: 12px;
+        box-shadow: var(--shadow-card); overflow: hidden;
+    }
+    .chat-header-bar { padding: 14px 16px; border-bottom: 0.5px solid var(--wx-divider); font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; background: #fafafa; }
+    .chat-bubbles { padding: 16px; display: flex; flex-direction: column; gap: 12px; max-height: 300px; overflow-y: auto; }
+    .chat-msg { display: flex; gap: 10px; align-items: flex-start; animation: msgIn 0.4s ease-out; }
+    @keyframes msgIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .chat-msg .msg-avatar { width: 34px; height: 34px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 15px; color: #fff; flex-shrink: 0; font-weight: 600; }
+    .chat-msg .msg-body .msg-name { font-size: 11px; color: var(--wx-text-muted); margin-bottom: 3px; }
+    .chat-msg .msg-body .msg-text { font-size: 14px; background: #f0f0f0; padding: 10px 14px; border-radius: 4px 14px 14px 14px; line-height: 1.5; display: inline-block; max-width: 260px; }
+    .chat-input-row { display: flex; gap: 10px; padding: 10px 16px; border-top: 0.5px solid var(--wx-divider); background: #fafafa; align-items: center; }
+    .chat-input-row input { flex: 1; border: none; background: var(--wx-white); padding: 10px 14px; border-radius: 20px; font-size: 14px; outline: none; border: 1px solid var(--wx-divider); }
+    .chat-input-row button { border: none; background: var(--wx-green); color: #fff; padding: 10px 18px; border-radius: 20px; font-size: 13px; cursor: pointer; flex-shrink: 0; }
+    .chat-input-row button:active { opacity: 0.8; }
+
+    /* ===== 彩蛋按钮 ===== */
+    .easter-egg-bar { display: flex; gap: 10px; padding: 12px; flex-wrap: wrap; }
+    .egg-btn {
+        flex: 1; min-width: 80px; padding: 16px 10px; border-radius: 12px; border: none;
+        cursor: pointer; font-size: 13px; font-weight: 600; color: #fff;
+        transition: all 0.2s; text-align: center; box-shadow: var(--shadow-card);
+    }
+    .egg-btn:active { transform: scale(0.95); }
+    .egg-btn--popcorn { background: linear-gradient(135deg, #f59e0b, #e87839); }
+    .egg-btn--dance { background: linear-gradient(135deg, #ec4899, #8b5cf6); }
+    .egg-btn--run { background: linear-gradient(135deg, #10b981, #06b6d4); }
+    .egg-btn--line { background: linear-gradient(135deg, #667eea, #764ba2); }
+
+    /* ===== 粒子特效 ===== */
+    .particle-container { position: fixed; inset: 0; pointer-events: none; z-index: 300; }
+    .particle {
+        position: absolute; font-size: 24px;
+        animation: particleFall 2.5s ease-in forwards; pointer-events: none;
+    }
+    @keyframes particleFall {
+        0% { opacity: 1; transform: translateY(0) rotate(0deg) scale(1); }
+        100% { opacity: 0; transform: translateY(100vh) rotate(720deg) scale(0.3); }
+    }
+
+    /* ===== Toast ===== */
+    .toast {
+        position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.8);
+        background: rgba(0,0,0,0.8); color: #fff; padding: 12px 24px; border-radius: 20px;
+        font-size: 15px; z-index: 400; pointer-events: none; opacity: 0; transition: all 0.3s;
+    }
+    .toast.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+
+    /* ===== 距离弹窗 ===== */
+    .distance-toast {
+        position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+        background: rgba(0,0,0,0.85); color: #fff; padding: 14px 22px; border-radius: 16px;
+        font-size: 14px; z-index: 350; pointer-events: none; opacity: 0;
+        transition: opacity 0.3s; text-align: center; line-height: 1.6;
+    }
+    .distance-toast.show { opacity: 1; }
+
+    /* 响应式 */
+    @media (max-width: 400px) {
+        .timezone-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+        #mapContainer { height: 280px; }
+    }
+    @media (min-width: 500px) {
+        .timezone-grid { grid-template-columns: 1fr 1fr 1fr 1fr; }
+    }
+</style>
+</head>
+<body>
+
+<!-- 导航栏 -->
+<nav class="navbar">
+    <div class="navbar-back" onclick="window.scrollTo({top:0,behavior:'smooth'})">←</div>
+    <div class="navbar-title">📚 夕阳红活动中心</div>
+    <div class="navbar-action" onclick="toggleAnnouncement()">公告</div>
+</nav>
+
+<div class="main">
+
+    <!-- 群头像区 -->
+    <div class="group-header">
+        <div class="group-name">夕阳红活动中心 <span class="emoji">🌅</span></div>
+        <div class="group-subtitle" id="onlineHint">8 位成员 · 来自五湖四海 · 横跨太平洋</div>
+        <div class="member-dots">
+            <!-- JS 动态渲染 -->
+        </div>
+    </div>
+
+    <!-- 🌍 世界地图 -->
+    <div class="map-section">
+        <div class="map-header">
+            <div class="map-title">🌍 我们在地球上的位置</div>
+            <button class="map-toggle" id="mapToggle" onclick="toggleLines()">🔗 连线模式</button>
+        </div>
+        <div id="mapContainer"></div>
+    </div>
+    <div class="distance-toast" id="distanceToast"></div>
+
+    <!-- 🌏 时区感知 -->
+    <div class="section-title"><span class="dot"></span>此刻 · 谁在看书？</div>
+    <div class="timezone-grid" id="timezoneGrid"></div>
+
+    <!-- 公告滚动条 -->
+    <div class="announcement-bar" onclick="toggleAnnouncement()">
+        <span class="icon">📢</span>
+        <div class="marquee"><span class="marquee-inner">
+            还有很多书你没有读过，它们会让你更充实。&emsp;&emsp;我们会吃着超大份爆米花看很多电影。&emsp;&emsp;我们会跳舞，大笑，沿着河岸跑步，聊天到深夜，笑到肚子疼。&emsp;&emsp;生活，在等待着你。&emsp;&emsp;
+            还有很多书你没有读过，它们会让你更充实。&emsp;&emsp;我们会吃着超大份爆米花看很多电影。&emsp;&emsp;我们会跳舞，大笑，沿着河岸跑步，聊天到深夜，笑到肚子疼。&emsp;&emsp;生活，在等待着你。&emsp;&emsp;
+        </span></div>
+    </div>
+
+    <!-- 今日荐书 -->
+    <div class="section-title"><span class="dot"></span>今日荐书 · 群友品味认证</div>
+    <div class="book-recommend" id="bookRecommend">
+        <div class="book-cover" id="bookCoverEmoji">📖</div>
+        <div class="book-title" id="bookTitle">点击下方按钮</div>
+        <div class="book-author" id="bookAuthor">—— 开启今日阅读好运</div>
+        <div class="book-reason" id="bookReason"></div>
+        <button class="btn-shuffle" onclick="shuffleBook()">🎲 换一本</button>
+    </div>
+
+    <!-- 🍾 漂流瓶 -->
+    <div class="section-title"><span class="dot"></span>群友漂流瓶</div>
+    <div class="bottle-section">
+        <div class="bottle-anim" onclick="throwBottle()">🍾</div>
+        <div class="bottle-msg" id="bottleMsg">点一下瓶子，扔出一个漂流瓶 🌊</div>
+        <div class="bottle-route" id="bottleRoute"></div>
+    </div>
+
+    <!-- 群聊模拟器 -->
+    <div class="section-title"><span class="dot"></span>夕阳红茶水间 💬</div>
+    <div class="chat-section">
+        <div class="chat-header-bar">💬 群聊 · 今天在聊...</div>
+        <div class="chat-bubbles" id="chatBubbles">
+            <div class="chat-msg"><div class="msg-avatar" style="background:#e87839;">白</div><div class="msg-body"><div class="msg-name">老白</div><div class="msg-text">潮汕今天下雨，在家冲了一泡鸭屎香，边喝边看群～☔🍵</div></div></div>
+            <div class="chat-msg"><div class="msg-avatar" style="background:#3b82f6;">福</div><div class="msg-body"><div class="msg-name">阿福</div><div class="msg-text">美国这边凌晨了，但我还在看书！先不睡了 📖✨</div></div></div>
+            <div class="chat-msg"><div class="msg-avatar" style="background:#10b981;">琪</div><div class="msg-body"><div class="msg-name">阿琪</div><div class="msg-text">云南今天晴好，苍山上的雪还没化完，美得很～🗻</div></div></div>
+            <div class="chat-msg"><div class="msg-avatar" style="background:#06b6d4;">鲁</div><div class="msg-body"><div class="msg-name">阿鲁</div><div class="msg-text">黑龙江这嘎达暖气停了，翻书都得戴手套！❄️</div></div></div>
+        </div>
+        <div class="chat-input-row">
+            <input type="text" id="chatInput" placeholder="说点什么..." maxlength="30" onkeydown="if(event.key==='Enter')sendChat()">
+            <button onclick="sendChat()">发送</button>
+        </div>
+    </div>
+
+    <!-- 彩蛋按钮 -->
+    <div class="section-title"><span class="dot"></span>群公告 · 正确打开方式</div>
+    <div class="easter-egg-bar">
+        <button class="egg-btn egg-btn--popcorn" onclick="popcornParty()">🍿 超大吃爆米花</button>
+        <button class="egg-btn egg-btn--dance" onclick="danceParty()">💃 跳舞 & 大笑</button>
+        <button class="egg-btn egg-btn--run" onclick="runParty()">🏃 沿河岸跑步</button>
+        <button class="egg-btn egg-btn--line" onclick="flyLines()">✈️ 群友时空连线</button>
+    </div>
+
+</div>
+
+<!-- 公告弹窗 -->
+<div class="overlay" id="announcementOverlay" onclick="event.target===this && toggleAnnouncement()">
+    <div class="overlay-dialog">
+        <h3>📢 群公告</h3>
+        <div class="quote">
+            <span>"还有很多书你没有读过，它们会让你更充实。"</span>
+            <span>"我们会吃着超大份爆米花看很多电影。"</span>
+            <span>"我们会跳舞，大笑，沿着河岸跑步，聊天到深夜，笑到肚子疼。"</span>
+            <span>"生活，在等待着你。"</span>
+        </div>
+        <button class="overlay-close" onclick="toggleAnnouncement()">收到 ✨</button>
+    </div>
+</div>
+
+<!-- 粒子层 -->
+<div class="particle-container" id="particleLayer"></div>
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+    // ============ 成员数据 ============
+    const members = [
+        { id: 1, name: '老白', region: '广东潮汕', emoji: '🍵', color: '#e87839', lat: 23.67, lng: 116.62, city: '潮汕', tz: 'Asia/Shanghai', fact: '潮汕工夫茶有二十一式，老白说：第一式叫"白鹤沐浴"，其实就洗杯子。' },
+        { id: 2, name: '阿福', region: '美国', emoji: '🌉', color: '#3b82f6', lat: 37.77, lng: -122.42, city: '旧金山', tz: 'America/Los_Angeles', fact: '阿福这里是西海岸，比国内晚 15 个小时。你们吃午饭的时候，他在前一天晚上做梦。' },
+        { id: 3, name: '舒姨', region: '广东广州', emoji: '🌸', color: '#ec4899', lat: 23.13, lng: 113.26, city: '广州', tz: 'Asia/Shanghai', fact: '舒姨说广州人的一天是从早茶开始的——虾饺凤爪叉烧包，吃饱了才有力气看书。' },
+        { id: 4, name: '姐', region: '广东深圳', emoji: '👑', color: '#8b5cf6', lat: 22.54, lng: 114.06, city: '深圳', tz: 'Asia/Shanghai', fact: '姐在深圳——中国最年轻的一线城市，快节奏里藏着一颗爱读书的慢灵魂。' },
+        { id: 5, name: '阿琪', region: '云南大理', emoji: '🌿', color: '#10b981', lat: 25.60, lng: 100.27, city: '大理', tz: 'Asia/Shanghai', fact: '阿琪窗外就是苍山洱海。她说在大理，时间是用来浪费的，书是用来慢慢翻的。' },
+        { id: 6, name: '唯', region: '江苏苏州', emoji: '🕊️', color: '#f59e0b', lat: 31.30, lng: 120.63, city: '苏州', tz: 'Asia/Shanghai', fact: '唯住在苏州，她说逛园林和读书是一回事——都在方寸之间，看见天地。' },
+        { id: 7, name: '阿鲁', region: '黑龙江哈尔滨', emoji: '❄️', color: '#06b6d4', lat: 45.80, lng: 126.53, city: '哈尔滨', tz: 'Asia/Shanghai', fact: '阿鲁是群里纬度最高的——冬天零下三十度，但在暖气房里吃冰棍，是东北人的基本操作。' },
+        { id: 8, name: '阿云', region: '河南洛阳', emoji: '🏮', color: '#ef4444', lat: 34.62, lng: 112.45, city: '洛阳', tz: 'Asia/Shanghai', fact: '阿云脚下踩着的土里可能藏着唐三彩。洛阳人出门拐个弯，就是千年古迹。' }
+    ];
+
+    const memberColors = members.map(m => m.color);
+
+    // ============ 渲染头像圆点 ============
+    const dotsContainer = document.querySelector('.member-dots');
+    members.forEach(m => {
+        const dot = document.createElement('span');
+        dot.className = 'member-dot';
+        dot.style.background = m.color;
+        dot.textContent = m.emoji;
+        dot.innerHTML += `<span class="tooltip">${m.name} · ${m.city}</span>`;
+        dot.onclick = () => flyToMember(m);
+        dotsContainer.appendChild(dot);
+    });
+
+    // ============ 地图初始化 ============
+    const map = L.map('mapContainer', {
+        center: [33, 105],
+        zoom: 4,
+        zoomControl: true,
+        attributionControl: false,
+        scrollWheelZoom: true,
+        doubleClickZoom: true,
+        dragging: true,
+        worldCopyJump: true,
+        maxBounds: [[-85, -270], [85, 270]],
+        maxBoundsViscosity: 0.3
+    });
+
+    // 多个 tile 源备选
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        subdomains: 'abcd',
+        maxZoom: 19
+    }).addTo(map);
+
+    // 自定义图标
+    function createIcon(member) {
+        return L.divIcon({
+            className: 'custom-div-icon',
+            html: `<div style="
+                width:36px;height:36px;border-radius:50%;background:${member.color};
+                display:flex;align-items:center;justify-content:center;font-size:18px;
+                color:#fff;box-shadow:0 3px 12px rgba(0,0,0,0.25);border:2px solid #fff;
+                cursor:pointer;transition:transform 0.2s;font-weight:700;
+            ">${member.emoji}</div>`,
+            iconSize: [36, 36],
+            iconAnchor: [18, 18],
+            popupAnchor: [0, -22]
+        });
+    }
+
+    // 添加标记
+    const markers = {};
+    members.forEach(m => {
+        const marker = L.marker([m.lat, m.lng], { icon: createIcon(m) })
+            .addTo(map)
+            .bindPopup(`
+                <div class="map-popup">
+                    <div class="popup-avatar" style="background:${m.color};">${m.emoji}</div>
+                    <div class="popup-name">${m.name}</div>
+                    <div class="popup-region">📍 ${m.region}</div>
+                    <div class="popup-fact">"${m.fact}"</div>
+                </div>
+            `, { closeButton: false, className: 'custom-popup' });
+        markers[m.id] = marker;
+    });
+
+    function flyToMember(member) {
+        map.flyTo([member.lat, member.lng], 8, { duration: 1.5 });
+        setTimeout(() => markers[member.id].openPopup(), 1600);
+    }
+
+    // ============ 连线模式 ============
+    let linesLayer = null;
+    let showLines = false;
+
+    function toggleLines() {
+        showLines = !showLines;
+        const btn = document.getElementById('mapToggle');
+        if (showLines) {
+            btn.textContent = '🔗 隐藏连线';
+            btn.classList.add('active');
+            drawLines();
+        } else {
+            btn.textContent = '🔗 连线模式';
+            btn.classList.remove('active');
+            if (linesLayer) { map.removeLayer(linesLayer); linesLayer = null; }
+        }
+    }
+
+    function drawLines() {
+        if (linesLayer) map.removeLayer(linesLayer);
+        const latlngs = members.map(m => [m.lat, m.lng]);
+        latlngs.push(latlngs[0]); // 闭合
+        linesLayer = L.polyline(latlngs, {
+            color: '#c9a24e',
+            weight: 2,
+            opacity: 0.5,
+            dashArray: '8 6',
+            smoothFactor: 1
+        }).addTo(map);
+    }
+
+    // flyLines 彩蛋：飞行动画
+    function flyLines() {
+        if (!showLines) toggleLines();
+        showToast('✈️ 群友时空连线！');
+        // 地图飞行动画
+        let i = 0;
+        const flyNext = () => {
+            if (i >= members.length) return;
+            map.flyTo([members[i].lat, members[i].lng], 7, { duration: 1.2 });
+            setTimeout(() => markers[members[i].id].openPopup(), 1300);
+            i++;
+            setTimeout(flyNext, 1800);
+        };
+        flyNext();
+    }
+
+    // ============ 时区状态 ============
+    function getLocalTimeStatus(member) {
+        const now = new Date();
+        // 国内成员 UTC+8，阿福 UTC-7 (PDT) 或 -8 (PST)
+        let hour;
+        if (member.id === 2) { // 阿福 - 美国西海岸
+            // 简化处理：夏令时 UTC-7，冬令时 UTC-8
+            hour = now.getUTCHours() - 7;
+        } else {
+            hour = now.getUTCHours() + 8;
+        }
+        hour = ((hour % 24) + 24) % 24;
+
+        let status, cls;
+        if (hour >= 6 && hour < 10) { status = '🌅 清晨翻书'; cls = 'maybe'; }
+        else if (hour >= 10 && hour < 18) { status = '☀️ 醒着，可能在读'; cls = 'awake'; }
+        else if (hour >= 18 && hour < 23) { status = '🌙 夜读时光'; cls = 'awake'; }
+        else { status = '😴 大概睡了'; cls = 'sleep'; }
+        return { hour, status, cls };
+    }
+
+    function renderTimezone() {
+        const grid = document.getElementById('timezoneGrid');
+        grid.innerHTML = members.map(m => {
+            const tz = getLocalTimeStatus(m);
+            return `
+                <div class="tz-card" onclick="flyToMember(members[${m.id - 1}])">
+                    <div class="tz-avatar" style="background:${m.color};">${m.emoji}</div>
+                    <div class="tz-info">
+                        <div class="tz-name">${m.name}</div>
+                        <div class="tz-city">📍 ${m.city}</div>
+                        <span class="tz-status ${tz.cls}">${tz.status}</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+    renderTimezone();
+
+    // ============ 公告弹窗 ============
+    function toggleAnnouncement() {
+        document.getElementById('announcementOverlay').classList.toggle('active');
+    }
+
+    // ============ 随机荐书 ============
+    const books = [
+        { emoji: '📖', title: '《活着》', author: '余华', reason: '夕阳红的各位，咱们这个年纪，这本书里的每一页都是人生。读完你会更珍惜这个群里每一句"早安"。' },
+        { emoji: '🌊', title: '《老人与海》', author: '海明威', reason: '阿鲁在黑龙江冰钓的时候大概就是这个感觉——一个人可以被毁灭，但不能被打败。' },
+        { emoji: '🍜', title: '《人间草木》', author: '汪曾祺', reason: '老白喝茶、舒姨煲汤、阿琪晒太阳——汪曾祺的文字就是这种舒服的感觉。读着读着就饿了。' },
+        { emoji: '🌈', title: '《小王子》', author: '圣埃克苏佩里', reason: '阿福从美国发来推荐：大人也需要童话。真正重要的东西，眼睛是看不见的。' },
+        { emoji: '🏔️', title: '《平凡的世界》', author: '路遥', reason: '群里八个人八个省，每个人的故事都是平凡世界里不平凡的一章。' },
+        { emoji: '🦋', title: '《百年孤独》', author: '马尔克斯', reason: '唯说这本书她读了三年——每次翻开都能找到新的孤独和新的勇气。' },
+        { emoji: '🌙', title: '《月亮与六便士》', author: '毛姆', reason: '低头是六便士，抬头看月亮。姐说：别忘了低头赶路的时候，头顶还有光。' },
+        { emoji: '🎭', title: '《围城》', author: '钱锺书', reason: '阿云推荐：读钱锺书才知道什么叫"有趣的灵魂"。河南人的幽默，是祖传的。' }
+    ];
+
+    function shuffleBook() {
+        const btn = document.querySelector('.btn-shuffle');
+        btn.textContent = '🔄 抽取中...';
+        btn.disabled = true;
+        let count = 0;
+        const flash = setInterval(() => {
+            const b = books[Math.floor(Math.random() * books.length)];
+            document.getElementById('bookCoverEmoji').textContent = b.emoji;
+            document.getElementById('bookTitle').textContent = b.title;
+            document.getElementById('bookAuthor').textContent = b.author;
+            document.getElementById('bookReason').textContent = b.reason;
+            if (++count > 8) {
+                clearInterval(flash);
+                const final = books[Math.floor(Math.random() * books.length)];
+                document.getElementById('bookCoverEmoji').textContent = final.emoji;
+                document.getElementById('bookTitle').textContent = final.title;
+                document.getElementById('bookAuthor').textContent = final.author;
+                document.getElementById('bookReason').textContent = final.reason;
+                btn.textContent = '🎲 换一本';
+                btn.disabled = false;
+                const cover = document.getElementById('bookCoverEmoji').parentElement.querySelector('.book-cover');
+                if (cover) { cover.style.transform = 'scale(1.1)'; setTimeout(() => cover.style.transform = 'scale(1)', 200); }
+            }
+        }, 80);
+    }
+
+    // ============ 漂流瓶 ============
+    const bottleMessages = [
+        { msg: '"今天读了一首好诗，分享给你——「从前的日色变得慢，车，马，邮件都慢，一生只够爱一个人。」"', from: '老白', to: '舒姨' },
+        { msg: '"阿福跨越太平洋发来问候：地球是圆的，翻开的书也是圆的——从哪里开始，都能回到温暖的地方。"', from: '阿福', to: '阿琪' },
+        { msg: '"窗外的雨停了，书翻到了最后一页。然后我发现——最好的故事，是合上书之后，还能想起你。"', from: '唯', to: '阿云' },
+        { msg: '"东北的雪化了又下，书读了又读。有些书每次翻开都不一样，就像每次和你聊天。"', from: '阿鲁', to: '姐' },
+        { msg: '"在大理的阳光下读书，字会发光。今天这束光，分你一半。"', from: '阿琪', to: '老白' },
+        { msg: '"舒姨说：人生就像煲汤，大火烧开，小火慢炖。读书也是，急不得。"', from: '舒姨', to: '阿鲁' },
+        { msg: '"姐的金句：书是别人替你走的路，但你得自己迈脚。所以——放下手机，去翻两页！"', from: '姐', to: '阿福' },
+        { msg: '"云从洛阳飘到了大理，书从第一页翻到了最后一页。故事结束了，但生活还在继续。"', from: '阿云', to: '唯' },
+    ];
+
+    function throwBottle() {
+        const bottle = document.querySelector('.bottle-anim');
+        const msgEl = document.getElementById('bottleMsg');
+        const routeEl = document.getElementById('bottleRoute');
+
+        bottle.style.animation = 'none';
+        bottle.offsetHeight;
+        bottle.style.animation = 'bob 2.5s ease-in-out infinite';
+
+        const pick = bottleMessages[Math.floor(Math.random() * bottleMessages.length)];
+        let i = 0;
+        const typeMsg = () => {
+            if (i <= pick.msg.length) {
+                msgEl.textContent = pick.msg.substring(0, i);
+                i++;
+                setTimeout(typeMsg, 40);
+            } else {
+                routeEl.textContent = `🥏 ${pick.from} → ${pick.to} · 漂流距离 ${Math.floor(Math.random()*8000+1000)} 公里`;
+            }
+        };
+        typeMsg();
+        showToast('🍾 瓶子漂出去了！');
+    }
+
+    // ============ 群聊 ============
+    const chatMembers = members.map(m => ({ name: m.name, abbr: m.name[0], color: m.color }));
+
+    function sendChat() {
+        const input = document.getElementById('chatInput');
+        const text = input.value.trim();
+        if (!text) return;
+        const replier = chatMembers[Math.floor(Math.random() * chatMembers.length)];
+        const bubbles = document.getElementById('chatBubbles');
+        bubbles.innerHTML += `
+            <div class="chat-msg">
+                <div class="msg-avatar" style="background:#1aad19;">我</div>
+                <div class="msg-body"><div class="msg-name">你</div><div class="msg-text">${escapeHtml(text)}</div></div>
+            </div>`;
+
+        const replies = [
+            `哈哈哈 "${text}" 说得太对了！`,
+            `同感同感！我也经常这么想～`,
+            `诶！你这句话让我想起了一本书……`,
+            `这个话题可以聊到深夜！🍿`,
+            `下次一起讨论这个！`,
+            `+1 简直说出了我的心声`,
+            `笑到肚子疼哈哈哈`,
+            `我这边${['下雨','晴天','阴天','刮风'][Math.floor(Math.random()*4)]}，边看书边看群消息～`,
+            `👆 已截图保存`,
+            `说得好，奖励一朵小红花 🌺`
+        ];
+        setTimeout(() => {
+            bubbles.innerHTML += `
+                <div class="chat-msg">
+                    <div class="msg-avatar" style="background:${replier.color};">${replier.abbr}</div>
+                    <div class="msg-body"><div class="msg-name">${replier.name}</div><div class="msg-text">${replies[Math.floor(Math.random()*replies.length)]}</div></div>
+                </div>`;
+            bubbles.scrollTop = bubbles.scrollHeight;
+        }, 500 + Math.random() * 700);
+
+        input.value = '';
+        bubbles.scrollTop = bubbles.scrollHeight;
+    }
+
+    function escapeHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+
+    // ============ 彩蛋 ============
+    function popcornParty() { showToast('🍿 超大份爆米花来了！'); spawnParticles(['🍿','🍿','🍿','🍿','🍿','🍿','🍿','🍿','🍿','🍿','🥤','🎬','🍿','🍿','🍿','🍿','🍿','🍿','🍿','🍿']); }
+    function danceParty() {
+        showToast('💃 音乐起！笑到肚子疼！🕺');
+        spawnParticles(['💃','🕺','💃','🕺','🪩','🎵','🎶','💃','🕺','💃','🕺','✨','🪩','💃','🕺','🎵']);
+        document.querySelectorAll('.tz-card').forEach((c, i) => {
+            setTimeout(() => { c.style.transform = `rotate(${(Math.random()-0.5)*8}deg)`; setTimeout(() => c.style.transform = '', 300); }, i * 60);
+        });
+    }
+    function runParty() {
+        showToast('🏃‍♂️ 沿着河岸跑起来！🏃‍♀️');
+        spawnParticles(['🏃','🏃‍♀️','🏃‍♂️','💨','🌊','🏃','🏃‍♀️','🏃‍♂️','💨','🌿','🏃','🏃‍♀️','🏃‍♂️','💨','🌅']);
+        const mq = document.querySelector('.marquee-inner');
+        mq.style.animationDuration = '3s';
+        setTimeout(() => mq.style.animationDuration = '20s', 3000);
+    }
+
+    function spawnParticles(emojis) {
+        const container = document.getElementById('particleLayer');
+        emojis.forEach((e, i) => {
+            setTimeout(() => {
+                const p = document.createElement('span');
+                p.className = 'particle';
+                p.textContent = e;
+                p.style.left = Math.random() * 100 + '%';
+                p.style.top = -(Math.random() * 60 + 10) + 'px';
+                p.style.animationDuration = (Math.random() * 2 + 2.5) + 's';
+                p.style.fontSize = (Math.random() * 20 + 22) + 'px';
+                container.appendChild(p);
+                setTimeout(() => p.remove(), 3000);
+            }, i * 60);
+        });
+    }
+
+    let toastTimer;
+    function showToast(msg) {
+        const t = document.getElementById('toast');
+        t.textContent = msg; t.classList.add('show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => t.classList.remove('show'), 1500);
+    }
+
+    // ============ 初始化 ============
+    setTimeout(() => shuffleBook(), 600);
+    setTimeout(() => { map.invalidateSize(); }, 300);
+
+    // 在线状态轮换
+    const hints = [
+        '8 位成员 · 来自五湖四海 · 横跨太平洋',
+        '8 位成员 · 有人在翻书，有人在想晚饭吃什么...',
+        '8 位成员 · 阿福那边现在是凌晨，快催他睡觉！',
+        '8 位成员 · 老白正在泡今天的第 N 泡茶...',
+        '8 位成员 · 舒姨的煲汤香气飘到了群里...',
+        '8 位成员 · 阿琪说云南的云今天特别好看',
+        '8 位成员 · 阿鲁在暖气房里穿着短袖翻书',
+        '8 位成员 · 姐又在给大家安利好东西了...',
+        '8 位成员 · 最远距离：阿鲁→阿福，跨越 8,500 公里',
+        '8 位成员 · 从哈尔滨到旧金山，一本书的距离'
+    ];
+    setInterval(() => {
+        document.getElementById('onlineHint').textContent = hints[Math.floor(Math.random() * hints.length)];
+    }, 5000);
+</script>
+
+</body>
+</html>
